@@ -29,15 +29,21 @@
       <ul id="trusted-list" class="trusted-list"></ul>
       <p id="settings-status" class="status" role="status"></p>
     </section>
-  </main>
-  <script src="settings.js"></script>
-</body>
-</html>
 
     <section class="settings-section">
       <p class="warning-title">Test tools</p>
-      <p class="warning-text">Open the manual test harness. Use emitted results to test popup/logs/warning; use a normal HTTPS page for real 3/3 content-script blocking.</p>
+      <p class="warning-text">Manually set the active site’s score.</p>
+      <div class="test-score settings-test-score" aria-label="Manual test score">
+        <button type="button" class="score-btn" data-test-score="1">1</button>
+        <button type="button" class="score-btn" data-test-score="2">2</button>
+        <button type="button" class="score-btn danger" data-test-score="3">3</button>
+        <button type="button" class="score-btn ghost" data-test-score="clear">Clear</button>
+      </div>
       <div class="actions-col">
         <button id="open-test-page" class="btn ghost" type="button">Open test page</button>
       </div>
     </section>
+  </main>
+  <script src="settings.js"></script>
+</body>
+</html>

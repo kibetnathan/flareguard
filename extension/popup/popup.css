@@ -99,6 +99,40 @@ h1 {
   cursor: progress;
 }
 
+.test-score {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 22px 0;
+}
+
+.settings-test-score { margin: 10px 0 0; }
+
+.test-score-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal-deep);
+  margin-right: 2px;
+}
+
+.score-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--teal-soft);
+  color: var(--teal-deep);
+  font: 700 13px var(--font);
+  cursor: pointer;
+}
+
+.score-btn:hover { background: var(--teal); color: white; border-color: var(--teal); }
+.score-btn.danger { background: var(--red); color: #fff7f7; border-color: var(--red); }
+.score-btn.danger:hover { background: var(--red-deep); border-color: var(--red-deep); }
+.score-btn.ghost { background: white; font-weight: 600; }
+
 .status {
   flex: 1;
   margin: 14px 22px 0;

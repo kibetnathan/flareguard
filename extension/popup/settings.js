@@ -92,8 +92,35 @@ chrome.storage.local.onChanged.addListener((changes) => {
   if (changes.trustedHosts) render();
 });
 
-render();
+async function setTestScore(score) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) return setStatus("No active tab found.", "flagged");
+    const key = `tab:${tab.id}`;
+    if (score === "clear") {
+      await chrome.storage.session.remove(key);
+      try { await chrome.runtime.sendMessage({ type: "FG_LOG", ts: Date.now(), level: "info", source: "settings", message: "Cleared manual test score for active tab", data: { tabId: tab.id, url: tab.url } }); } catch (_) {}
+      setStatus("Cleared score for this tab.", "clean");
+      return;
+    }
+    const n = Number(score);
+    const verdict = n >= 3 ? "likely" : n === 2 ? "possible" : "none";
+    const signals = [{ name: "manual-test", weight: 99, detail: `Score forced to ${n}/3 for testing` }];
+    const result = { type: "SCAN_RESULT", url: tab.url || "", score: n, verdict, signals, manualTest: true, ts: Date.now() };
+    await chrome.storage.session.set({ [key]: result });
+    try { await chrome.runtime.sendMessage({ type: "FG_LOG", ts: Date.now(), level: n >= 3 ? "warn" : "info", source: "settings", message: `Manual test score set: ${n}/3`, data: { tabId: tab.id, url: tab.url, verdict } }); } catch (_) {}
+    if (n > 2) location.href = "warning.html";
+    else location.href = "main.html";
+  } catch (e) {
+    setStatus(`Could not set test score: ${String(e && e.message ? e.message : e)}`, "flagged");
+  }
+}
 
+document.querySelectorAll("[data-test-score]").forEach((btn) => {
+  btn.addEventListener("click", () => setTestScore(btn.getAttribute("data-test-score")));
+});
+
+render();
 
 const openTestBtn = document.getElementById("open-test-page");
 if (openTestBtn) openTestBtn.addEventListener("click", async () => {
@@ -102,3 +129,4 @@ if (openTestBtn) openTestBtn.addEventListener("click", async () => {
     await chrome.tabs.create({ url });
   } catch (e) { setStatus(String(e), "flagged"); }
 });
+

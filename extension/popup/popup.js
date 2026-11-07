@@ -1,18 +1,20 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-  function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-  return new (P || (P = Promise))(function (resolve, reject) {
-    function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-    function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-    function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-    step((generator = generator.apply(thisArg, _arguments || [])).next());
-  });
-};
 
 const countEl = document.getElementById("count");
 const scanButton = document.getElementById("scan");
 const statusEl = document.getElementById("status");
 const helpLink = document.getElementById("help");
+
+async function getActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
+}
+
+async function logEvent(level, message, data) {
+  try {
+    await chrome.runtime.sendMessage({ type: "FG_LOG", ts: Date.now(), level, source: "popup", message, data });
+  } catch (_) {}
+}
 
 const verdictText = {
   likely: "Likely fraudulent clone detected.",
@@ -20,18 +22,9 @@ const verdictText = {
   none: "No clone or payment risk signals found.",
 };
 
-function getActiveTab() {
-  return __awaiter(this, void 0, void 0, function* () {
-    const [tab] = yield chrome.tabs.query({ active: true, currentWindow: true });
-    return tab;
-  });
-}
-
-function loadThreatCount() {
-  return __awaiter(this, void 0, void 0, function* () {
-    const stored = yield chrome.storage.local.get("threatsStopped");
-    countEl.textContent = String(stored.threatsStopped || 0);
-  });
+async function loadThreatCount() {
+  const stored = await chrome.storage.local.get("threatsStopped");
+  countEl.textContent = String(stored.threatsStopped || 0);
 }
 
 function renderStatus(message, tone) {
@@ -79,54 +72,43 @@ function renderResult(result) {
   renderStatus(root, tone);
 }
 
-function loadCurrentResult() {
-  return __awaiter(this, void 0, void 0, function* () {
-    const tab = yield getActiveTab();
-    if (!(tab && tab.id)) {
-      renderStatus("No active tab found.", "");
-      return;
-    }
-    if (!(tab.url && /^https?:/i.test(tab.url))) {
-      renderStatus("Scanning works on regular webpages.", "");
-      return;
-    }
-
-    const key = `tab:${tab.id}`;
-    const stored = yield chrome.storage.session.get(key);
-    renderResult(stored[key]);
-    chrome.storage.session.onChanged.addListener((changes) => {
-      if (changes[key]) renderResult(changes[key].newValue);
-    });
-    chrome.storage.local.onChanged.addListener((changes) => {
-      if (changes.threatsStopped) countEl.textContent = String(changes.threatsStopped.newValue || 0);
-    });
+async function loadCurrentResult() {
+  const tab = await getActiveTab();
+  if (!tab || !tab.id) {
+    renderStatus("No active tab found.", "");
+    return;
+  }
+  const key = `tab:${tab.id}`;
+  const stored = await chrome.storage.session.get(key);
+  renderResult(stored[key]);
+  chrome.storage.session.onChanged.addListener((changes) => {
+    if (changes[key]) renderResult(changes[key].newValue);
+  });
+  chrome.storage.local.onChanged.addListener((changes) => {
+    if (changes.threatsStopped) countEl.textContent = String(changes.threatsStopped.newValue || 0);
   });
 }
 
-function runScan() {
-  return __awaiter(this, void 0, void 0, function* () {
-    const tab = yield getActiveTab();
-    if (!(tab && tab.id && tab.url && /^https?:/i.test(tab.url))) {
-      renderStatus("Scanning works on regular webpages.", "");
-      return;
-    }
-
-    scanButton.disabled = true;
-    renderStatus("Scanning webpage...", "");
-    try {
-      yield chrome.tabs.sendMessage(tab.id, { type: "SCAN_REQUEST" });
-      window.setTimeout(() => __awaiter(this, void 0, void 0, function* () {
-        const key = `tab:${tab.id}`;
-        const stored = yield chrome.storage.session.get(key);
-        renderResult(stored[key]);
-        scanButton.disabled = false;
-      }), 700);
-    }
-    catch (_a) {
-      renderStatus("Reload the webpage, then try scanning again.", "flagged");
+async function runScan() {
+  const tab = await getActiveTab();
+  if (!tab || !tab.id || !tab.url || !/^https?:/i.test(tab.url)) {
+    renderStatus("Scanning works on regular webpages.", "");
+    return;
+  }
+  scanButton.disabled = true;
+  renderStatus("Scanning webpage...", "");
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "SCAN_REQUEST" });
+    window.setTimeout(async () => {
+      const key = `tab:${tab.id}`;
+      const stored = await chrome.storage.session.get(key);
+      renderResult(stored[key]);
       scanButton.disabled = false;
-    }
-  });
+    }, 700);
+  } catch (_) {
+    renderStatus("Reload the webpage, then try scanning again.", "flagged");
+    scanButton.disabled = false;
+  }
 }
 
 scanButton.addEventListener("click", () => { runScan(); });
