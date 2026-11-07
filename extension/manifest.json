@@ -12,7 +12,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["scripts/content.js", "scripts/collector.js"],
+      "js": ["scripts/collector.js", "scripts/content.js"],
       "run_at": "document_idle",
       "all_frames": true
     }

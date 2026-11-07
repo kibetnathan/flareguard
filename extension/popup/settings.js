@@ -5,6 +5,8 @@ const trustCurrentBtn = document.getElementById("trust-current");
 const addBtn = document.getElementById("add-trust");
 const listEl = document.getElementById("trusted-list");
 const statusEl = document.getElementById("settings-status");
+const apiEndpointEl = document.getElementById("api-endpoint");
+const saveEndpointBtn = document.getElementById("save-endpoint");
 
 function setStatus(text, tone) {
   statusEl.className = tone ? `status ${tone}` : "status";
@@ -21,6 +23,22 @@ function normalizeHost(value) {
     return raw.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
   }
 }
+
+async function loadEndpoint() {
+  const stored = await chrome.storage.sync.get("apiEndpoint");
+  apiEndpointEl.value = stored.apiEndpoint || "http://localhost:8000/api/v1/analyze";
+}
+
+saveEndpointBtn.addEventListener("click", async () => {
+  try {
+    const url = new URL(apiEndpointEl.value.trim()).href;
+    await chrome.storage.sync.set({ apiEndpoint: url });
+    apiEndpointEl.value = url;
+    setStatus("Saved API endpoint.", "clean");
+  } catch (_) {
+    setStatus("Enter a valid endpoint URL.", "flagged");
+  }
+});
 
 async function getTrusted() {
   const stored = await chrome.storage.local.get("trustedHosts");
@@ -79,9 +97,7 @@ trustCurrentBtn.addEventListener("click", async () => {
     if (!tab || !tab.url) return setStatus("No active tab URL found.", "flagged");
     hostEl.value = normalizeHost(tab.url);
     await addHost(tab.url);
-  } catch (e) {
-    setStatus(String(e), "flagged");
-  }
+  } catch (e) { setStatus(String(e), "flagged"); }
 });
 
 addBtn.addEventListener("click", async () => {
@@ -99,18 +115,19 @@ async function setTestScore(score) {
     const key = `tab:${tab.id}`;
     if (score === "clear") {
       await chrome.storage.session.remove(key);
+      try { await chrome.tabs.sendMessage(tab.id, { type: "FG_UNBLOCK", reason: "manual test clear" }); } catch (_) {}
       try { await chrome.runtime.sendMessage({ type: "FG_LOG", ts: Date.now(), level: "info", source: "settings", message: "Cleared manual test score for active tab", data: { tabId: tab.id, url: tab.url } }); } catch (_) {}
       setStatus("Cleared score for this tab.", "clean");
       return;
     }
     const n = Number(score);
     const verdict = n >= 3 ? "likely" : n === 2 ? "possible" : "none";
-    const signals = [{ name: "manual-test", weight: 99, detail: `Score forced to ${n}/3 for testing` }];
-    const result = { type: "SCAN_RESULT", url: tab.url || "", score: n, verdict, signals, manualTest: true, ts: Date.now() };
+    const signals = [{ name: "manual-test", weight: 99, detail: `Forced API-style score ${n}/3 for UI testing` }];
+    const result = { type: "SCAN_RESULT", source: "manual-test", url: tab.url || "", score: n, verdict, signals, apiAssessment: { verdict: n >= 3 ? "high" : n === 2 ? "medium" : "low", confidence: "low", score: n * 33 }, manualTest: true, ts: Date.now() };
     await chrome.storage.session.set({ [key]: result });
+    try { await chrome.tabs.sendMessage(tab.id, { type: n >= 3 ? "FG_APPLY_RESULT" : "FG_UNBLOCK", result, reason: `manual test score ${n}/3` }); } catch (_) {}
     try { await chrome.runtime.sendMessage({ type: "FG_LOG", ts: Date.now(), level: n >= 3 ? "warn" : "info", source: "settings", message: `Manual test score set: ${n}/3`, data: { tabId: tab.id, url: tab.url, verdict } }); } catch (_) {}
-    if (n > 2) location.href = "warning.html";
-    else location.href = "main.html";
+    if (n > 2) location.href = "warning.html"; else location.href = "main.html";
   } catch (e) {
     setStatus(`Could not set test score: ${String(e && e.message ? e.message : e)}`, "flagged");
   }
@@ -121,12 +138,10 @@ document.querySelectorAll("[data-test-score]").forEach((btn) => {
 });
 
 render();
+loadEndpoint();
 
 const openTestBtn = document.getElementById("open-test-page");
 if (openTestBtn) openTestBtn.addEventListener("click", async () => {
-  try {
-    const url = chrome.runtime.getURL("test-page.html");
-    await chrome.tabs.create({ url });
-  } catch (e) { setStatus(String(e), "flagged"); }
+  try { await chrome.tabs.create({ url: chrome.runtime.getURL("test-page.html") }); }
+  catch (e) { setStatus(String(e), "flagged"); }
 });
-

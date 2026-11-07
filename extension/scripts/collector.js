@@ -1,5 +1,4 @@
-// Collector script for Flare Guard extension
-// Captures page data and posts to provided API endpoint
+"use strict";
 
 function fgRuntimeOk() {
   try { return !!(chrome && chrome.runtime && chrome.runtime.id); } catch (_) { return false; }
@@ -55,11 +54,11 @@ function getNavbarLogoExtension() {
   return null;
 }
 
-async function checkBrokenLinks() {
+async function checkBrokenLinks(limit) {
   const links = Array.from(document.querySelectorAll('a[href]'));
-  const urls = links.map(l => l.href).filter(h => h.startsWith('http'));
+  const urls = links.map(l => l.href).filter(h => /^https?:/i.test(h)).slice(0, limit || 20);
   const broken = [];
-  const concurrency = 5;
+  const concurrency = 4;
   let i = 0;
   async function worker() {
     while (i < urls.length) {
@@ -67,82 +66,59 @@ async function checkBrokenLinks() {
       const url = urls[index];
       try {
         const res = await fetch(url, { method: 'HEAD', mode: 'no-cors' });
-        if (!res.ok) broken.push(url);
+        if (res && res.ok === false) broken.push(url);
       } catch (_) {
         try {
           const res2 = await fetch(url, { method: 'GET', mode: 'cors' });
-          if (!res2.ok) broken.push(url);
+          if (res2 && !res2.ok) broken.push(url);
         } catch (_) {
-          broken.push(url);
+          // avoid false positives for cross-origin/no-cors failures
         }
       }
     }
   }
-  await Promise.all(Array.from({ length: concurrency }, worker));
+  await Promise.all(Array.from({ length: Math.min(concurrency, urls.length || 1) }, worker));
   return broken;
 }
 
 function sampleData(data) {
   return {
     url: data.url,
+    title: data.title,
     hasFavicon: data.hasFavicon,
     navbarLogoExtension: data.navbarLogoExtension,
     brokenLinksCount: Array.isArray(data.brokenLinks) ? data.brokenLinks.length : 0,
     brokenLinksSample: Array.isArray(data.brokenLinks) ? data.brokenLinks.slice(0, 5) : [],
+    triggerCount: Array.isArray(data.triggerSignals) ? data.triggerSignals.length : 0,
   };
 }
 
-async function collectAndSend() {
-  if (!fgRuntimeOk()) return;
-  try {
-    fgLog("info", "Collector started");
-    const data = {
-      url: location.href,
-      hasFavicon: hasFavicon(),
-      navbarLogoExtension: getNavbarLogoExtension(),
-      brokenLinks: await checkBrokenLinks(),
-    };
-    if (!fgRuntimeOk()) return;
-    fgLog("info", "Collector check ok: data collected", {
-      ok: true,
-      sample: sampleData(data),
-    });
-    const endpoint = await new Promise(resolve => {
-      try { chrome.storage.sync.get(['apiEndpoint'], result => resolve(result && result.apiEndpoint)); }
-      catch (_) { resolve(null); }
-    });
-    if (!fgRuntimeOk()) return;
-    if (!endpoint) {
-      fgLog("warn", "API endpoint not configured; sample kept in logs only", {
-        ok: true,
-        sample: sampleData(data),
-      });
-      return;
-    }
-    try {
-      await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      fgLog("info", "Collector sent data to API endpoint", {
-        ok: true,
-        sample: sampleData(data),
-      });
-    } catch (e) {
-      fgLog("error", "Collector failed to send page data", {
-        ok: false,
-        error: String(e),
-        sample: sampleData(data),
-      });
-    }
-  } catch (error) {
-    fgLog("error", "Collector check failed", { ok: false, error: String(error) });
-  }
+async function collectData(triggerSignals) {
+  const data = {
+    url: location.href,
+    title: document.title || "",
+    hasFavicon: hasFavicon(),
+    navbarLogoExtension: getNavbarLogoExtension(),
+    brokenLinks: await checkBrokenLinks(20),
+    triggerSignals: Array.isArray(triggerSignals) ? triggerSignals : [],
+    collectedAt: new Date().toISOString(),
+  };
+  fgLog("info", "Collector check ok: data collected", { ok: true, sample: sampleData(data) });
+  return data;
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', collectAndSend);
-} else {
-  collectAndSend();
+if (fgRuntimeOk()) {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (!msg || msg.type !== "FG_COLLECT") return;
+    fgLog("info", "Collector requested by trigger/API flow", { reason: msg.reason || "", triggerCount: (msg.triggerSignals || []).length });
+    collectData(msg.triggerSignals || []).then((data) => {
+      try { sendResponse({ ok: true, data }); } catch (_) {}
+    }).catch((error) => {
+      fgLog("error", "Collector check failed", { ok: false, error: String(error) });
+      try { sendResponse({ ok: false, error: String(error) }); } catch (_) {}
+    });
+    return true;
+  });
 }
+
+fgLog("info", "Collector ready (waiting for trigger)");

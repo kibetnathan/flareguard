@@ -14,6 +14,18 @@
     </header>
 
     <section class="settings-section">
+      <p class="warning-title">API endpoint</p>
+      <p class="warning-text">Used by the background worker for analysis. Collector data is gathered after buying/payment triggers; the API response decides fraud/risk.</p>
+      <label class="field">
+        <span>Analyze endpoint</span>
+        <input id="api-endpoint" type="url" placeholder="http://localhost:8000/api/v1/analyze" spellcheck="false" />
+      </label>
+      <div class="actions-col">
+        <button id="save-endpoint" class="btn secondary" type="button">Save endpoint</button>
+      </div>
+    </section>
+
+    <section class="settings-section">
       <p class="warning-title">Trusted sites</p>
       <p class="warning-text">Sites manually trusted here can bypass the 3/3 interaction block on their hostname. Trust only if you are sure the page is legitimate.</p>
 
@@ -32,7 +44,7 @@
 
     <section class="settings-section">
       <p class="warning-title">Test tools</p>
-      <p class="warning-text">Manually set the active site’s score.</p>
+      <p class="warning-text">Manually set an API-style result for the active site’s popup/blocking UI.</p>
       <div class="test-score settings-test-score" aria-label="Manual test score">
         <button type="button" class="score-btn" data-test-score="1">1</button>
         <button type="button" class="score-btn" data-test-score="2">2</button>

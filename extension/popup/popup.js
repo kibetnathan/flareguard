@@ -10,16 +10,10 @@ async function getActiveTab() {
   return tab;
 }
 
-async function logEvent(level, message, data) {
-  try {
-    await chrome.runtime.sendMessage({ type: "FG_LOG", ts: Date.now(), level, source: "popup", message, data });
-  } catch (_) {}
-}
-
 const verdictText = {
-  likely: "Likely fraudulent clone detected.",
-  possible: "Possible suspicious signals found.",
-  none: "No clone or payment risk signals found.",
+  likely: "Likely fraudulent (API).",
+  possible: "Possible risk (API).",
+  none: "No/low risk reported by API.",
 };
 
 async function loadThreatCount() {
@@ -39,16 +33,16 @@ function renderStatus(message, tone) {
 
 function renderResult(result) {
   if (!result) {
-    renderStatus("Open a webpage and press Scan webpage.", "");
+    renderStatus("Open a webpage. Buying/payment signals trigger collection and API analysis.", "");
     return;
   }
 
-  if (result.score > 2) {
+  if (result.score > 2 && result.source === "api") {
     location.replace("warning.html");
     return;
   }
 
-  const tone = result.verdict === "possible" ? "flagged" : "clean";
+  const tone = result.verdict === "possible" ? "flagged" : result.verdict === "likely" ? "flagged" : "clean";
   const root = document.createDocumentFragment();
 
   const title = document.createElement("strong");
@@ -56,12 +50,18 @@ function renderResult(result) {
   root.append(title);
 
   const meta = document.createElement("div");
-  meta.textContent = `Risk level ${result.score} / 3`;
+  meta.textContent = `API risk level ${result.score} / 3` + (result.source === "api" ? "" : " (local/test)");
   root.append(meta);
+
+  if (result.apiAssessment) {
+    const a = document.createElement("div");
+    a.textContent = `API verdict: ${result.apiAssessment.verdict}, confidence: ${result.apiAssessment.confidence}, score: ${result.apiAssessment.score}`;
+    root.append(a);
+  }
 
   if (result.signals && result.signals.length) {
     const list = document.createElement("ul");
-    result.signals.forEach((signal) => {
+    result.signals.slice(0, 8).forEach((signal) => {
       const item = document.createElement("li");
       item.textContent = signal.detail ? `${signal.name}: ${signal.detail}` : signal.name;
       list.append(item);
@@ -92,21 +92,22 @@ async function loadCurrentResult() {
 async function runScan() {
   const tab = await getActiveTab();
   if (!tab || !tab.id || !tab.url || !/^https?:/i.test(tab.url)) {
-    renderStatus("Scanning works on regular webpages.", "");
+    renderStatus("Manual scan works on regular webpages.", "");
     return;
   }
   scanButton.disabled = true;
-  renderStatus("Scanning webpage...", "");
+  renderStatus("Requesting collector + API analysis...", "");
   try {
-    await chrome.tabs.sendMessage(tab.id, { type: "SCAN_REQUEST" });
+    const resp = await chrome.tabs.sendMessage(tab.id, { type: "SCAN_REQUEST" });
+    if (resp && resp.error) renderStatus(resp.error, "flagged");
     window.setTimeout(async () => {
       const key = `tab:${tab.id}`;
       const stored = await chrome.storage.session.get(key);
-      renderResult(stored[key]);
+      renderResult(stored[key] || null);
       scanButton.disabled = false;
-    }, 700);
+    }, 1500);
   } catch (_) {
-    renderStatus("Reload the webpage, then try scanning again.", "flagged");
+    renderStatus("Reload the webpage, then try again.", "flagged");
     scanButton.disabled = false;
   }
 }
@@ -115,20 +116,14 @@ scanButton.addEventListener("click", () => { runScan(); });
 
 helpLink.addEventListener("click", (event) => {
   event.preventDefault();
-  renderStatus("Scan a page to check for risky payment or clone signals. Flagged pages show a risk level and the signals found.", "clean");
+  renderStatus("Buying/payment signals trigger collection and API analysis. Fraud decisions come from the API response.", "clean");
 });
 
 document.querySelectorAll(".tools button").forEach((button) => {
   button.addEventListener("click", () => {
     const action = button.getAttribute("data-action") || "action";
-    if (action === "logs") {
-      location.href = "logs.html";
-      return;
-    }
-    if (action === "settings") {
-      location.href = "settings.html";
-      return;
-    }
+    if (action === "logs") { location.href = "logs.html"; return; }
+    if (action === "settings") { location.href = "settings.html"; return; }
     const labels = {
       account: "Account is not available yet.",
       blocked: "Blocked sites are not available yet.",

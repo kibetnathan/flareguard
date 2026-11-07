@@ -1,11 +1,15 @@
 "use strict";
 let fgObserver;
+let fgLastTriggerKey = "";
+let fgAnalyzeTimer;
+const FG_HARDCODED_BLOCKED_HOSTS = ["easycoachbuskenya.co.ke"];
+
 function fgRuntimeOk() {
     try { return !!(chrome && chrome.runtime && chrome.runtime.id); }
     catch (_a) { return false; }
 }
 function fgStop() {
-    try { clearTimeout(timer); } catch (_a) { }
+    try { clearTimeout(fgAnalyzeTimer); } catch (_a) { }
     try { if (fgObserver) fgObserver.disconnect(); } catch (_a) { }
 }
 function fgLog(level, message, data) {
@@ -29,6 +33,31 @@ function fgLog(level, message, data) {
 const FG_BLOCK_ID = "flareguard-risk-block";
 function fgCurrentHost() {
     try { return location.hostname.toLowerCase(); } catch (_a) { return ""; }
+}
+function fgIsHardcodedBlockedHost() {
+    const host = fgCurrentHost();
+    return FG_HARDCODED_BLOCKED_HOSTS.some((blocked) => host === blocked || host.endsWith("." + blocked));
+}
+function fgHardcodedBlockResult() {
+    return {
+        type: "SCAN_RESULT",
+        source: "hardcoded-blocklist",
+        url: location.href,
+        score: 3,
+        verdict: "likely",
+        signals: [{ name: "hardcoded-blocklist", weight: 999, detail: `Host ${fgCurrentHost()} is on the hardcoded blocklist` }],
+        apiAssessment: { verdict: "confirmed", confidence: "high", score: 100 },
+    };
+}
+function fgApplyHardcodedBlock(reason) {
+    if (!fgIsHardcodedBlockedHost()) return false;
+    const result = fgHardcodedBlockResult();
+    fgLog("warn", `Hardcoded blocklist matched: ${fgCurrentHost()}`, { ok: true, reason: reason, url: location.href });
+    fgApplyRiskBlock(result);
+    if (fgRuntimeOk()) {
+        chrome.runtime.sendMessage(result, () => { try { void chrome.runtime.lastError; } catch (_a) { } });
+    }
+    return true;
 }
 function fgTrustedHosts(cb) {
     if (!fgRuntimeOk()) return cb([]);
@@ -65,7 +94,7 @@ function fgBlockPage(result) {
         block.setAttribute("role", "dialog");
         block.setAttribute("aria-modal", "true");
         block.setAttribute("aria-label", "Flareguard high risk warning");
-        block.innerHTML = `<div class="fg-card"><h1>Flareguard blocked this page</h1><p>This page scored <strong>3/3</strong> risk and interaction is blocked to help prevent payment/credential theft.</p><code></code><p>To access it anyway, open <strong>Flareguard Settings</strong> and manually trust this site’s hostname. Only do this if you are sure it is legitimate.</p><div class="fg-actions"><button type="button" class="fg-settings">Open extension popup for Settings</button><button type="button" class="fg-back">Go back</button></div><p class="fg-note">Settings path: extension popup → Settings → Trust current tab / add hostname, then refresh this page.</p></div>`;
+        block.innerHTML = `<div class="fg-card"><h1>Flareguard blocked this page</h1><p>API analysis marked this page as high risk and interaction is blocked to help prevent payment/credential theft.</p><code></code><p>To access it anyway, open <strong>Flareguard Settings</strong> and manually trust this site’s hostname. Only do this if you are sure it is legitimate.</p><div class="fg-actions"><button type="button" class="fg-settings">Open extension popup for Settings</button><button type="button" class="fg-back">Go back</button></div><p class="fg-note">Settings path: extension popup → Settings → Trust current tab / add hostname, then refresh this page.</p></div>`;
         block.addEventListener("click", (e) => { e.stopPropagation(); }, true);
         block.addEventListener("mousedown", (e) => { e.stopPropagation(); }, true);
         block.addEventListener("keydown", (e) => { e.stopPropagation(); }, true);
@@ -81,7 +110,7 @@ function fgBlockPage(result) {
             try { if (history.length > 1) history.back(); else location.href = "about:blank"; } catch (_a) { location.href = "about:blank"; }
         });
         (document.body || document.documentElement).appendChild(block);
-        fgLog("warn", "Page interaction blocked due to 3/3 risk", { score: result && result.score, verdict: result && result.verdict, host: fgCurrentHost() });
+        fgLog("warn", "Page interaction blocked due to high-risk result", { score: result && result.score, verdict: result && result.verdict, host: fgCurrentHost(), source: result && result.source });
     } else {
         const code = block.querySelector("code");
         if (code) code.textContent = location.href;
@@ -90,7 +119,7 @@ function fgBlockPage(result) {
 }
 function fgApplyRiskBlock(result) {
     if (!result || typeof result.score !== "number" || result.score < 3) {
-        fgUnblockPage(result ? "score below 3/3" : "no result");
+        fgUnblockPage(result ? "API score below 3/3" : "no API result");
         return;
     }
     const host = fgCurrentHost();
@@ -117,7 +146,8 @@ const BUTTON_PATTERNS = [
     /\b(lipa sasa|nunua sasa|jiunge|nunua|lipa|kamilisha agizo|weka agizo|anza jaribio la bure)\b/i,
 ];
 const PRICE_PATTERN = /(?:[$€£]|KES|KSh|USD|EUR)\s?\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?(?:\s?\/\s?(?:mo|month|yr|year))?/i;
-function collectSignals() {
+
+function detectBuyingSignals() {
     var _a, _b;
     const signals = [];
     const cardFields = document.querySelectorAll('input[autocomplete^="cc-"], input[name*="card" i], input[name*="cvc" i]');
@@ -152,52 +182,81 @@ function collectSignals() {
     }
     return signals;
 }
-function evaluate() {
+
+function requestApiCheck(reason, force) {
     if (!fgRuntimeOk()) return fgStop();
-    try {
-        const signals = collectSignals();
-        const rawScore = signals.reduce((sum, s) => sum + s.weight, 0);
-        const verdict = rawScore >= 5 ? "likely" : rawScore >= 3 ? "possible" : "none";
-        const score = verdict === "likely" ? 3 : verdict === "possible" ? 2 : 1;
-        const hasPayment = signals.length > 0;
-        const result = { type: "SCAN_RESULT", url: location.href, score, verdict, signals };
-        fgLog(hasPayment ? "warn" : "info", `Content check ok: hasPayment=${hasPayment}`, {
+    if (fgApplyHardcodedBlock(reason || "trigger")) return;
+    const buyingSignals = detectBuyingSignals();
+    const needsCheck = buyingSignals.length > 0;
+    const triggerKey = buyingSignals.map((s) => s.name).sort().join("|") + "|" + location.href;
+    if (!force && !needsCheck) {
+        fgUnblockPage("no buying/payment trigger");
+        fgLog("info", "Buying trigger check: no payment/buying signals; API check skipped", {
             ok: true,
-            hasPayment,
-            score,
-            verdict,
-            rawScore,
-            signals,
-            sample: {
-                url: location.href,
-                title: document.title || "",
-                verdict,
-                hasPayment,
-                signalNames: signals.map((s) => s.name),
-            },
+            needsCheck: false,
+            reason: reason,
+            sample: { url: location.href, title: document.title || "", triggerCount: 0 },
         });
-        fgApplyRiskBlock(result);
-        if (!fgRuntimeOk()) return fgStop();
-        chrome.runtime.sendMessage(result, () => {
-            try { void chrome.runtime.lastError; } catch (_a) { }
-        });
+        return;
     }
-    catch (error) {
-        if (fgRuntimeOk()) fgLog("error", "Content check failed", { ok: false, error: String(error) });
-    }
+    if (!force && triggerKey === fgLastTriggerKey) return;
+    fgLastTriggerKey = triggerKey;
+    fgLog(needsCheck ? "warn" : "info", force ? "Manual scan requested; triggering collector+API check" : "Buying/payment trigger detected; triggering collector+API check", {
+        ok: true,
+        needsCheck: true,
+        force: !!force,
+        reason: reason,
+        triggerSignals: buyingSignals,
+        sample: { url: location.href, title: document.title || "", signalNames: buyingSignals.map((s) => s.name) },
+    });
+    chrome.runtime.sendMessage({
+        type: "FG_TRIGGER_CHECK",
+        url: location.href,
+        triggerSignals: buyingSignals,
+        force: !!force,
+        reason: reason || "trigger",
+    }, (resp) => {
+        try { void chrome.runtime.lastError; } catch (_a) { }
+        if (resp && resp.error) fgLog("error", "Background did not accept trigger", { error: resp.error });
+    });
 }
+
 if (fgRuntimeOk()) {
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (!fgRuntimeOk()) return;
-        if ((msg === null || msg === void 0 ? void 0 : msg.type) === "SCAN_REQUEST") {
-            fgLog("info", "Manual scan requested");
-            evaluate();
+        if (msg && msg.type === "SCAN_REQUEST") {
+            fgLastTriggerKey = "";
+            if (fgApplyHardcodedBlock("manual-scan")) {
+                try { sendResponse({ ok: fgRuntimeOk() }); } catch (_a) { }
+                return;
+            }
+            requestApiCheck("manual-scan", true);
             try { sendResponse({ ok: fgRuntimeOk() }); } catch (_a) { }
+            return;
+        }
+        if (msg && msg.type === "FG_APPLY_RESULT") {
+            if (fgIsHardcodedBlockedHost() && !(msg.result && msg.result.source === "hardcoded-blocklist")) {
+                fgApplyHardcodedBlock("api-result-ignored");
+            } else {
+                fgApplyRiskBlock(msg.result);
+            }
+            try { sendResponse({ ok: true }); } catch (_a) { }
+            return;
+        }
+        if (msg && msg.type === "FG_UNBLOCK") {
+            if (fgIsHardcodedBlockedHost()) {
+                fgApplyHardcodedBlock("unblock-ignored");
+            } else {
+                fgUnblockPage(msg.reason || "manual unblock");
+            }
+            try { sendResponse({ ok: true }); } catch (_a) { }
         }
     });
     try {
         chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === "local" && changes.trustedHosts && fgRuntimeOk()) evaluate();
+            if (area === "local" && changes.trustedHosts && fgRuntimeOk()) {
+                if (fgApplyHardcodedBlock("trusted-hosts-changed")) return;
+            }
         });
     } catch (_a) { }
 }
@@ -205,10 +264,10 @@ let timer;
 if (fgRuntimeOk()) {
     fgObserver = new MutationObserver(() => {
         if (!fgRuntimeOk()) return fgStop();
-        clearTimeout(timer);
-        timer = window.setTimeout(evaluate, 800);
+        clearTimeout(fgAnalyzeTimer);
+        fgAnalyzeTimer = window.setTimeout(() => requestApiCheck("dom-mutation", false), 1200);
     });
     fgObserver.observe(document.documentElement, { childList: true, subtree: true });
-    fgLog("info", "Content script loaded");
-    evaluate();
+    fgLog("info", "Content script loaded (trigger mode: buying check -> collector -> API)");
+    if (!fgApplyHardcodedBlock("initial-load")) requestApiCheck("initial-load", false);
 }
