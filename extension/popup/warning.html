@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flareguard Warning</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="card warning-page">
+    <header class="top">
+      <a class="back-link" href="main.html" aria-label="Back">←</a>
+      <h1>Warning</h1>
+    </header>
+
+    <section class="warning-box" aria-live="polite">
+      <p class="warning-title">High-risk page detected</p>
+      <p id="warning-meta" class="warning-meta">Risk score: —</p>
+      <p id="warning-url" class="warning-url"></p>
+      <p id="warning-text" class="warning-text">This page shows strong signs of a fraudulent clone or risky payment flow.</p>
+      <ul id="warning-signals" class="warning-signals"></ul>
+    </section>
+
+    <label class="field">
+      <span>Correct URL</span>
+      <input id="correct-url" type="url" placeholder="https://official-site.example/" spellcheck="false" />
+    </label>
+
+    <div class="actions-col">
+      <button id="navigate" class="btn primary" type="button">Navigate to correct URL</button>
+      <button id="report" class="btn secondary" type="button">Report this site</button>
+      <button id="save-url" class="btn ghost" type="button">Save correct URL for this site</button>
+    </div>
+
+    <p id="action-status" class="status" role="status"></p>
+  </main>
+  <script src="warning.js"></script>
+</body>
+</html>

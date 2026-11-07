@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flareguard Settings</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="card warning-page">
+    <header class="top">
+      <a class="back-link" href="main.html" aria-label="Back">←</a>
+      <h1>Settings</h1>
+    </header>
+
+    <section class="settings-section">
+      <p class="warning-title">API endpoint</p>
+      <p class="warning-text">Used by the background worker for analysis. Collector data is gathered after buying/payment triggers; the API response decides fraud/risk.</p>
+      <label class="field">
+        <span>Analyze endpoint</span>
+        <input id="api-endpoint" type="url" placeholder="http://localhost:8000/api/v1/analyze" spellcheck="false" />
+      </label>
+      <div class="actions-col">
+        <button id="save-endpoint" class="btn secondary" type="button">Save endpoint</button>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <p class="warning-title">Trusted sites</p>
+      <p class="warning-text">Sites manually trusted here can bypass the 3/3 interaction block on their hostname. Trust only if you are sure the page is legitimate.</p>
+
+      <label class="field">
+        <span>Trust this hostname</span>
+        <input id="trust-host" type="text" placeholder="example.com" spellcheck="false" />
+      </label>
+      <div class="actions-col">
+        <button id="trust-current" class="btn secondary" type="button">Trust current tab</button>
+        <button id="add-trust" class="btn primary" type="button">Add trusted hostname</button>
+      </div>
+
+      <ul id="trusted-list" class="trusted-list"></ul>
+      <p id="settings-status" class="status" role="status"></p>
+    </section>
+
+    <section class="settings-section">
+      <p class="warning-title">Test tools</p>
+      <p class="warning-text">Manually set an API-style result for the active site’s popup/blocking UI.</p>
+      <div class="test-score settings-test-score" aria-label="Manual test score">
+        <button type="button" class="score-btn" data-test-score="1">1</button>
+        <button type="button" class="score-btn" data-test-score="2">2</button>
+        <button type="button" class="score-btn danger" data-test-score="3">3</button>
+        <button type="button" class="score-btn ghost" data-test-score="clear">Clear</button>
+      </div>
+      <div class="actions-col">
+        <button id="open-test-page" class="btn ghost" type="button">Open test page</button>
+      </div>
+    </section>
+  </main>
+  <script src="settings.js"></script>
+</body>
+</html>

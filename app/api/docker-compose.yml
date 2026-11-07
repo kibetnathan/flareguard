@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: flareguard-db
+    environment:
+      POSTGRES_USER: flareguard
+      POSTGRES_PASSWORD: flareguard
+      POSTGRES_DB: flareguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - flareguard_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flareguard"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  flareguard_pgdata:
