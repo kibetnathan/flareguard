@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flareguard Test Page</title>
+  <style>
+    :root { --ink:#0C2220; --teal:#299F93; --red:#E12826; --bg:#f5fafa; --card:#fff; --border:#d7e8e6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+    main { max-width: 980px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 8px; color: #155852; }
+    p { margin: 0 0 12px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 16px 0; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+    .card h2 { margin: 0 0 8px; font-size: 18px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    button { appearance: none; border: 1px solid var(--border); background: #eef7f6; color: var(--ink); padding: 10px 12px; border-radius: 10px; font: 600 14px inherit; cursor: pointer; }
+    button.primary { background: var(--teal); color: #fff; border-color: var(--teal); }
+    button.danger { background: var(--red); color: #fff; border-color: var(--red); }
+    code, pre { background: #f3f7f7; border-radius: 10px; }
+    code { padding: 2px 6px; }
+    pre { padding: 12px; overflow: auto; font-size: 13px; }
+    .hint { font-size: 13px; color: #456; }
+    .panel { border: 1px dashed #bcd3cf; border-radius: 12px; padding: 12px; margin-top: 10px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 8px 0 4px; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .status { min-height: 22px; margin-top: 10px; font-size: 13px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Flareguard Test Page</h1>
+    <p>Manual test harness for detector results, popup warning routing, logs, and trust settings. Open this page in a tab, keep it active, then open the Flareguard popup.</p>
+    <p class="hint">Open via <code>chrome-extension://&lt;EXTENSION_ID&gt;/test-page.html</code>. Content scripts do not auto-run on <code>chrome-extension://</code> pages, so this page <strong>emits</strong> scan/log messages directly for popup/background testing. For the real in-page 3/3 block overlay, test on a normal <code>https://</code> page where content scripts run.</p>
+
+    <div class="grid">
+      <section class="card">
+        <h2>1) Clean (1/3)</h2>
+        <p>Emits a clean scan result for this tab.</p>
+        <div class="controls"><button class="primary" id="clean">Emit clean result</button></div>
+      </section>
+      <section class="card">
+        <h2>2) Possible (2/3)</h2>
+        <p>Emits a medium-risk result; popup should show flagged status (not redirect to warning page).</p>
+        <div class="controls"><button id="medium">Emit 2/3 result</button></div>
+      </section>
+      <section class="card">
+        <h2>3) Likely (3/3)</h2>
+        <p>Emits a high-risk result; popup should redirect to the warning page. Real page-block overlay requires a normal web page with content scripts.</p>
+        <div class="controls"><button class="danger" id="high">Emit 3/3 result</button></div>
+      </section>
+      <section class="card">
+        <h2>Manual controls</h2>
+        <div class="controls">
+          <button id="emit-log">Emit test log</button>
+          <button id="clear-tab-result">Clear tab result</button>
+          <button id="remove">Clear fixtures</button>
+          <button id="mutate">DOM mutation</button>
+          <button id="pushstate">Change hash</button>
+        </div>
+        <div id="test-status" class="status"></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Dynamic fixture area</h2>
+      <div id="fixture-root" class="panel"><em>No fixtures injected.</em></div>
+    </section>
+
+    <section class="card">
+      <h2>Checklist</h2>
+      <pre>- Test/Script logs page receives background + test-page logs.
+- Popup shows 1/3 and 2/3 results normally.
+- Popup redirects to warning page for 3/3.
+- Warning page can save correct URL and navigate (valid https URL).
+- Settings can trust/remove hostname.
+- On a real https page scoring 3/3, content script blocks interaction until hostname trusted and page refreshed.</pre>
+    </section>
+  </main>
+  <script src="test-page.js"></script>
+</body>
+</html>

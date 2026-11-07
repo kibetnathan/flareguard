@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flareguard Logs</title>
+  <link rel="stylesheet" href="logs.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="top">
+      <div>
+        <a class="back" href="main.html">Back</a>
+        <h1>Script logs</h1>
+      </div>
+      <div class="actions">
+        <button id="test" type="button">Test</button>
+        <button id="refresh" type="button">Refresh</button>
+        <button id="copy" type="button">Copy</button>
+        <button id="clear" type="button" class="danger">Clear</button>
+      </div>
+    </header>
+    <p id="meta" class="meta">Loading…</p>
+    <div id="logs" class="logs" aria-live="polite"></div>
+  </main>
+  <script src="logs.js"></script>
+</body>
+</html>

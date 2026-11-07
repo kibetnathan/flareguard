@@ -213,3 +213,75 @@ h1 {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+.back-link {
+  color: var(--teal-deep);
+  text-decoration: none;
+  font-size: 22px;
+  line-height: 1;
+  margin-right: 4px;
+}
+
+.warning-page .top { justify-content: flex-start; gap: 8px; }
+
+.warning-box {
+  margin: 14px 22px 0;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--red) 34%, white);
+  background: var(--red-soft);
+  color: var(--red-deep);
+}
+
+.warning-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.warning-meta, .warning-url, .warning-text { font-size: 13px; line-height: 1.4; color: var(--ink); }
+.warning-url { word-break: break-all; margin: 4px 0; color: #445; }
+.warning-signals { margin: 8px 0 0 18px; padding: 0; font-size: 13px; color: var(--ink); }
+
+.field {
+  display: block;
+  margin: 12px 22px 0;
+  font-size: 13px;
+  color: var(--teal-deep);
+  font-weight: 600;
+}
+
+.field input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  color: var(--ink);
+  font: 14px var(--font);
+}
+
+.actions-col { display: grid; gap: 8px; margin: 12px 22px 0; }
+
+.btn {
+  padding: 12px 14px;
+  border-radius: 14px;
+  font: 600 15px var(--font);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn.primary { background: var(--red); color: #fff7f7; border-color: var(--red); }
+.btn.primary:hover { background: var(--red-deep); }
+.btn.secondary { background: var(--teal); color: white; border-color: var(--teal); }
+.btn.secondary:hover { background: var(--teal-deep); }
+.btn.ghost { background: var(--teal-soft); color: var(--teal-deep); border-color: var(--border); }
+.btn.ghost:hover { background: color-mix(in srgb, var(--teal) 22%, white); }
+.btn:disabled { opacity: .72; cursor: progress; }
+
+.warning-page #action-status { margin: 12px 22px 0; min-height: 0; }
+
+.settings-section { margin-top: 14px; }
+.trusted-list { list-style: none; padding: 0; margin: 12px 22px 0; display: grid; gap: 8px; }
+.trusted-item, .trusted-empty {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: white; font-size: 13px;
+}
+.trusted-empty { color: #557; justify-content: flex-start; }
+.btn.small { padding: 7px 10px; font-size: 13px; border-radius: 10px; }

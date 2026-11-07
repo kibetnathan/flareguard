@@ -50,7 +50,12 @@ function renderResult(result) {
     return;
   }
 
-  const tone = result.verdict === "likely" ? "flagged" : result.verdict === "possible" ? "flagged" : "clean";
+  if (result.score > 2) {
+    location.replace("warning.html");
+    return;
+  }
+
+  const tone = result.verdict === "possible" ? "flagged" : "clean";
   const root = document.createDocumentFragment();
 
   const title = document.createElement("strong");
@@ -134,8 +139,15 @@ helpLink.addEventListener("click", (event) => {
 document.querySelectorAll(".tools button").forEach((button) => {
   button.addEventListener("click", () => {
     const action = button.getAttribute("data-action") || "action";
+    if (action === "logs") {
+      location.href = "logs.html";
+      return;
+    }
+    if (action === "settings") {
+      location.href = "settings.html";
+      return;
+    }
     const labels = {
-      settings: "Settings are not available yet.",
       account: "Account is not available yet.",
       blocked: "Blocked sites are not available yet.",
       report: "Report flow is not available yet.",

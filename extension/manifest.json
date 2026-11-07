@@ -4,6 +4,7 @@
   "version": "0.1",
   "manifest_version": 3,
   "permissions": ["storage"],
+  "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup/main.html",
     "default_icon": "images/placeholder.jpg"
@@ -11,7 +12,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["scripts/content.js"],
+      "js": ["scripts/content.js", "scripts/collector.js"],
       "run_at": "document_idle",
       "all_frames": true
     }
