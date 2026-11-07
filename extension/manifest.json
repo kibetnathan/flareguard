@@ -3,7 +3,8 @@
   "description": "A Chrome extension to detect and block fraudulent website clones and redirect to the correct site",
   "version": "0.1",
   "manifest_version": 3,
-  "permissions": ["storage"],
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup/main.html",
     "default_icon": "images/placeholder.jpg"
@@ -11,7 +12,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["scripts/content.js"],
+      "js": ["scripts/collector.js", "scripts/content.js"],
       "run_at": "document_idle",
       "all_frames": true
     }
